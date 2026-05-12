@@ -4,7 +4,9 @@ from fastapi import Header
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import date
-
+from jose import jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
 import models
 import schemas
 from database import engine, get_db
@@ -16,7 +18,11 @@ app = FastAPI(title="Booking Travel API")
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
+SECRET_KEY = "bookingtravelsecret"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_api_key(x_api_key: str = Header(None)):
     if x_api_key != API_KEY:
@@ -338,3 +344,68 @@ def delete_pemesanan(id: int, db: Session = Depends(get_db)):
     db.delete(data)
     db.commit()
     return {"message": "Pemesanan berhasil dihapus"}
+
+def hash_password(password):
+    return pwd_context.hash(password)
+
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    to_encode.update({"exp": expire})
+
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+@app.post("/register")
+def register(user: schemas.UserRegister, db: Session = Depends(get_db)):
+
+    cek_email = db.query(models.User).filter(
+        models.User.email == user.email
+    ).first()
+
+    if cek_email:
+        raise HTTPException(status_code=400, detail="Email sudah digunakan")
+
+    new_user = models.User(
+        username=user.username,
+        email=user.email,
+        password=hash_password(user.password)
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "message": "Register berhasil"
+    }
+
+@app.post("/login")
+def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+
+    db_user = db.query(models.User).filter(
+        models.User.email == user.email
+    ).first()
+
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Email salah")
+
+    if not verify_password(user.password, db_user.password):
+        raise HTTPException(status_code=401, detail="Password salah")
+
+    access_token = create_access_token(
+        data={
+            "id_user": db_user.id_user,
+            "email": db_user.email
+        }
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
