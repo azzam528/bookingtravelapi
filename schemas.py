@@ -96,9 +96,11 @@ class PenumpangResponse(PenumpangBase):
 class PemesananBase(BaseModel):
     id_penumpang: int
     id_jadwal: int
+    id_user: int
     nomor_kursi: str
     jumlah_kursi: int
     total_harga: Decimal
+    
 
 
 class PemesananCreate(PemesananBase):

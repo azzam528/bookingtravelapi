@@ -283,18 +283,81 @@ def delete_penumpang(id: int, db: Session = Depends(get_db)):
 def get_pemesanan(db: Session = Depends(get_db)):
     return db.query(models.Pemesanan).all()
 
+@app.get("/kursi/{id_jadwal}")
+def get_kursi_terisi(id_jadwal: int, db: Session = Depends(get_db)):
+    data = db.query(models.Pemesanan).filter(
+        models.Pemesanan.id_jadwal == id_jadwal,
+        models.Pemesanan.status_pemesanan != "Dibatalkan"
+    ).all()
 
-@app.get("/pemesanan/riwayat", response_model=list[schemas.PemesananResponse])
-def riwayat_pemesanan(db: Session = Depends(get_db)):
-    return db.query(models.Pemesanan).order_by(models.Pemesanan.tanggal_pemesanan.desc()).all()
+    kursi_terisi = []
+
+    for p in data:
+        nomor_kursi_list = p.nomor_kursi.split(",")
+
+        for kursi in nomor_kursi_list:
+            kursi_terisi.append(kursi.strip())
+
+    return kursi_terisi
 
 
-@app.get("/pemesanan/{id}", response_model=schemas.PemesananResponse)
+@app.get("/pemesanan/riwayat/{id_user}")
+def riwayat_pemesanan(id_user: int, db: Session = Depends(get_db)):
+
+    data = db.query(models.Pemesanan).filter(
+        models.Pemesanan.id_user == id_user
+    ).order_by(
+        models.Pemesanan.tanggal_pemesanan.desc()
+    ).all()
+
+    result = []
+
+    for p in data:
+        result.append({
+            "id_pemesanan": p.id_pemesanan,
+            "id_user": p.id_user,
+            "id_penumpang": p.id_penumpang,
+            "id_jadwal": p.id_jadwal,
+            "nomor_kursi": p.nomor_kursi,
+            "jumlah_kursi": p.jumlah_kursi,
+            "total_harga": float(p.total_harga),
+            "status_pemesanan": p.status_pemesanan,
+            "tanggal_pemesanan": str(p.tanggal_pemesanan),
+
+            "nama_travel": p.jadwal.bus.nama_travel,
+            "asal": p.jadwal.rute.kota_asal.nama_kota,
+            "tujuan": p.jadwal.rute.kota_tujuan.nama_kota,
+            "tanggal_berangkat": str(p.jadwal.tanggal_berangkat),
+            "jam_berangkat": str(p.jadwal.jam_berangkat)
+        })
+
+    return result
+
+@app.get("/pemesanan/{id}")
 def detail_pemesanan(id: int, db: Session = Depends(get_db)):
-    data = db.query(models.Pemesanan).filter(models.Pemesanan.id_pemesanan == id).first()
+    data = db.query(models.Pemesanan).filter(
+        models.Pemesanan.id_pemesanan == id
+    ).first()
+
     if not data:
         raise HTTPException(status_code=404, detail="Pemesanan tidak ditemukan")
-    return data
+
+    return {
+        "id_pemesanan": data.id_pemesanan,
+        "id_penumpang": data.id_penumpang,
+        "id_jadwal": data.id_jadwal,
+        "nomor_kursi": data.nomor_kursi,
+        "jumlah_kursi": data.jumlah_kursi,
+        "total_harga": float(data.total_harga),
+        "status_pemesanan": data.status_pemesanan,
+        "tanggal_pemesanan": data.tanggal_pemesanan,
+
+        "nama_travel": data.jadwal.bus.nama_travel,
+        "asal": data.jadwal.rute.kota_asal.nama_kota,
+        "tujuan": data.jadwal.rute.kota_tujuan.nama_kota,
+        "tanggal_berangkat": data.jadwal.tanggal_berangkat,
+        "jam_berangkat": data.jadwal.jam_berangkat
+    }
 
 
 @app.post("/pemesanan", response_model=schemas.PemesananResponse)
@@ -406,6 +469,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     )
 
     return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+    "id_user": db_user.id_user,
+    "access_token": access_token,
+    "token_type": "bearer"
+}

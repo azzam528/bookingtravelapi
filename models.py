@@ -70,7 +70,9 @@ class Pemesanan(Base):
     total_harga = Column(Numeric(10, 2), nullable=False)
     status_pemesanan = Column(String(50), default="Pending")
     tanggal_pemesanan = Column(DateTime, default=datetime.now)
-
+    id_user = Column(Integer, ForeignKey("user.id_user"), nullable=False)
+   
+    user = relationship("User")
     penumpang = relationship("Penumpang")
     jadwal = relationship("Jadwal")
 
